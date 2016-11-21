@@ -1,0 +1,17 @@
+{
+  "name": "testconnect",
+  "version": "1.0.0",
+  "description": "Connect Client to NoteJs",
+  "main": "server.js",
+  "dependencies": {
+    "soap": "^0.17.0",
+    "socket.io": "^1.5.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "peter",
+  "license": "ISC"
+}
