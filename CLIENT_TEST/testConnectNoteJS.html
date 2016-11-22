@@ -1,0 +1,196 @@
+<!--
+	NOTES:
+	1. All tokens are represented by '$' sign in the template.
+	2. You can write your code only wherever mentioned.
+	3. "DO NOT" alter the tokens in the template html as they are required during publishing.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>testConnectNoteJS</title>
+<!-- write your code here -->
+
+
+<script src="https://code.createjs.com/createjs-2015.11.26.min.js"></script>
+<script src="testConnectNoteJS.js?1478762828181"></script>
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script type="text/javascript" src="TextInput.js"></script>
+<script>
+var canvas, stage, exportRoot;
+var args = {
+        pUserid: 'PETER',
+        pUserType: 'MEMBER',
+        pPassword: '123456',
+        pSessionId: '0',
+        pClientIp: '127.0.0.1',
+        pRoomId: '0',
+        pLang: 'E',
+        isMain: 'true',
+        siteName: 'localhost',
+        casinoID: '2',
+        countryCode: 'EN',
+        iLoginTypeID: '1',
+        iParentSID: '0'
+    };
+var userInput, passInput;
+function init() {
+	// --- write your JS code here ---
+	
+	canvas = document.getElementById("canvas");
+	exportRoot = new lib.testConnectNoteJS();
+
+	stage = new createjs.Stage(canvas);
+	stage.addChild(exportRoot);
+	stage.update();
+
+	createjs.Ticker.setFPS(lib.properties.fps);
+	createjs.Ticker.addEventListener("tick", stage);
+	
+	// my code here ////////////////////////////////////////////////////////////////////////////////////////////////////////
+	var shape_rect = new createjs.Shape(); //Create your shape variable
+	shape_rect.graphics.beginFill("#FFD64B").drawRect(320, 150, 100, 40); //Draw initial rectangle
+	shape_rect.on("click", function(evt) {
+		//alert("type: "+evt.type+" target: "+evt.target+" stageX: "+evt.stageX);
+		console.log("userName :"+userInput.text+" password:"+passInput.text);
+		doLogin(userInput.text,passInput.text);
+	});
+	exportRoot.addChild(shape_rect);
+	
+	var shape_rect_disc = new createjs.Shape(); //Create your shape variable
+	shape_rect_disc.graphics.beginFill("#BBFFFF").drawRect(450, 150, 60, 40); //Draw initial rectangle
+	shape_rect_disc.on("click", function(evt) {
+		
+		//console.log("click on disconnect");
+		socket.disconnect();
+	});
+	exportRoot.addChild(shape_rect_disc);
+	
+	// Create and place our text field on the canvas
+	userInput = new TextInput();
+	userInput.y = userInput.x = 100;
+	userInput.placeHolder = "Input UserName"; // updates the default text
+	exportRoot.addChild(userInput);
+	userInput.update();
+	
+	passInput = new TextInput();
+	passInput.x = 100;
+	passInput.y = 150;
+	passInput.placeHolder = "Input PassWord"; // updates the default text
+	exportRoot.addChild(passInput);
+	passInput.update();
+	
+	// Standard auto refresh
+	/*
+	createjs.Ticker.on('tick', function () {
+		stage.update();
+	});
+	*/
+	
+}
+
+function doLogin(_user,_pass)
+{
+	var _query = {query:
+	"pUserid="+ _user +"&"+
+	"pUserType="+args.pUserType +"&"+
+	"pPassword="+ _pass +"&"+
+	"pSessionId="+args.pSessionId +"&"+
+	"pClientIp="+args.pClientIp +"&"+
+	"pRoomId="+args.pRoomId +"&"+
+	"pLang="+args.pLang +"&"+
+	"isMain="+args.isMain +"&"+
+	"siteName="+args.siteName +"&"+
+	"casinoID="+args.casinoID +"&"+
+	"countryCode="+args.countryCode +"&"+
+	"iLoginTypeID="+args.iLoginTypeID +"&"+
+	"iParentSID="+args.iParentSID
+	};
+	//socket = io.connect('http://192.168.0.12:8055/lobby',_query);
+	var socket = io.connect('http://localhost:8055/lobby',_query);
+	
+	socket.on('connect', function () {
+		console.log("Connect to socket.io Success !");
+		//socket.emit('userLogin',args);
+		//socket.disconnect();
+	});
+	
+	socket.on('disconnect', function () {
+		//socket.disconnect();
+		console.log("on disconnect of Client");
+		socket.disconnect();
+	});
+	
+	socket.on('connect_error', function () {
+		console.log("Connect to socket.io connect_error !");
+		socket.disconnect();
+	});
+	socket.on('reconnect', function () {
+		console.log("Connect to socket.io reconnect !");
+	});
+	socket.on('connect_timeout', function () {
+		console.log("Connect to socket.io connect_timeout !");
+	});
+	
+	socket.on('setSessionToken', function (data) {
+		var tmpArr = data.split("@");
+		var sessionToken = tmpArr[0];
+        console.log("onSetSessionToken :"+sessionToken);
+		
+		doLoginGameId(20,args.pUserType,userInput.text,sessionToken,1);
+		
+		socket.emit('getPersonInfo',sessionToken);
+		socket.emit('getExpired',userInput.text,sessionToken);
+		socket.emit('getAccInfoByUserN',sessionToken,userInput.text);
+		socket.emit('getExchange',sessionToken,userInput.text);
+		
+    });
+	socket.on('logMeOut', function (data) {
+        console.log("logMeOut :"+data);
+		socket.disconnect();
+    });
+}
+
+function doLoginGameId(_gameId,_userType,_userId,_sessionToken,_memberBetLtdSeq)
+{
+	var _query = {query:
+	"pTableNo="+ _gameId +"&"+
+	"pUserType="+_userType +"&"+
+	"pUserId="+ _userId +"&"+
+	"pSessionId="+_sessionToken +"&"+
+	"memberBetLtdSeq="+_memberBetLtdSeq
+	};
+	
+	var socketId = io.connect('http://localhost:8055/game',_query);
+	
+	socketId.on('connect', function () {
+		console.log("Connect to socket.io Game Success !");
+		//socket.disconnect();
+	});
+	
+	socketId.on('setTableLimit', function (data) {
+		console.log("on setTableLimit :"+data);
+	});
+	
+	socketId.on('disconnect', function () {
+		//socket.disconnect();
+		console.log("on GAME disconnect of Client");
+		socketId.disconnect();
+	});
+	
+	socketId.on('connect_error', function () {
+		console.log("Connect to socket.io GAME connect_error !");
+		socketId.disconnect();
+	});
+}
+
+</script>
+
+<!-- write your code here -->
+
+</head>
+<body onload="init();" style="background-color:#D4D4D4;margin:0px;">
+	<canvas id="canvas" width="550" height="400" style="background-color:#FFFFFF"></canvas>
+</body>
+</html>
