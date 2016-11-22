@@ -12,6 +12,7 @@ var LEN_SUCCESS_BIT = 1;
 var SUCCESS = "0";
 
 var socket_arr = new Array();
+var socket_game_arr = new Array();
 var myClient;
 
 // load service url
@@ -21,7 +22,7 @@ soap.createClient(urlSevice, function (err, client) {
 
 /* --------------------------------------------- on Lobby ------------------------------------------------------ */
 var socketLobby = io.of('/lobby').on('connection', function (socket) {
-    console.log("=================== Connect LOBBY ! ===================");
+    console.log("=================== Connect LOBBY ! =================== "+socket.handshake.url);
     var queryObj = url.parse(socket.handshake.url,true).query;
     //console.log("socket "+url.parse(socket.handshake.url,true).query.pUserid);
     console.log("User:"+queryObj.pUserid+ " pass:"+queryObj.pPassword + " pUserType:"+queryObj.pUserType + " pRoomId:"+queryObj.pRoomId);
@@ -118,7 +119,9 @@ var socketLobby = io.of('/lobby').on('connection', function (socket) {
 
                     if(socket.args.pUserType == "MEMBER")
                     {
-                        socket.emit('setSessionToken',socket.args.pSessionId+"@"+socket.args.iParentSID+"@"+socket.args.pUserid+"@"+socket.args.pNickName);
+                        socket.emit('setSessionToken',socket.args.pSessionId+"@"+socket.args.iParentSID+"@"+socket.args.pUserid+"@"+socket.args.pNickName);// this only
+                        //socketLobby.emit('setSessionToken',socket.args.pSessionId+"@"+socket.args.iParentSID+"@"+socket.args.pUserid+"@"+socket.args.pNickName);// send all
+                        //socket.broadcast.emit('setSessionToken',socket.args.pSessionId+"@"+socket.args.iParentSID+"@"+socket.args.pUserid+"@"+socket.args.pNickName); // send all except this
                     }
 
                 } else {
@@ -197,7 +200,7 @@ var socketLobby = io.of('/lobby').on('connection', function (socket) {
 
 
     socket.on('disconnect', function () {
-        removeASocket(socket);
+        removeASocket(socket,socket_arr);
         socket.disconnect();
         console.log("Lobby on disconnect Server");
         console.log("There have "+socket_arr.length+" user connect to Lobby");
@@ -214,7 +217,7 @@ var socketLobby = io.of('/lobby').on('connection', function (socket) {
 /* --------------------------------------------- on Game ------------------------------------------------------ */
 
 var socketGame = io.of('/game').on('connection', function (socket) {
-    console.log("=================== Connect GAME ! ===================");
+    console.log("=================== Connect GAME ! =================== "+socket.handshake.url);
 
     var queryObj = url.parse(socket.handshake.url,true).query;
     var tmpArgs = {
@@ -270,12 +273,13 @@ var socketGame = io.of('/game').on('connection', function (socket) {
                     socket.args.pNickName = sessionArr[3];
                     socket.args.pTableNo = tmpArgs.pTableNo;
 
-                    socket_arr.push(socket);
+                    socket_game_arr.push(socket);
+                    socket.join(socket.args.pTableNo);
 
                     socket.emit('setSessionToken',socket.args.pSessionId+"@"+socket.args.iParentSID);
 
                     Dealer_TableStatus(socket);
-
+                    Dealer_GetBetStatus(socket);
 
                 } else {
                     console.log("UserLogin Dealer Fail !");
@@ -283,7 +287,7 @@ var socketGame = io.of('/game').on('connection', function (socket) {
                 }
             }
         });
-    } else {
+    } else if(tmpArgs.pUserType == "MEMBER"){
         console.log("=========== Logged in as MEMBER ==========");
         var _args ={
             pUserId: tmpArgs.pUserId,
@@ -292,7 +296,7 @@ var socketGame = io.of('/game').on('connection', function (socket) {
             pBetLtdSeq:tmpArgs.memberBetLtdSeq
 
         }
-        //showObject(_args);
+        showObject(_args);
         myClient.CurrTableSet(_args, function (err, result) {
             if(err)
             {
@@ -307,8 +311,16 @@ var socketGame = io.of('/game').on('connection', function (socket) {
                 {
                     console.log("LOGIN SUCCESS GAME ID :"+_args.pTableNo);
                     socket.args = tmpArgs;
+                    socket_game_arr.push(socket);
+                    socket.join(socket.args.pTableNo);
+
                     socket.emit('confirmedConnection','0');
-                    socket.emit('setTableLimit',result);
+
+                    //socket.emit('setTableLimit',result);
+                    socket.in(socket.args.pTableNo).broadcast.emit('setTableLimit',result);
+
+                    console.log("There have "+socket_game_arr.length+" user connect to Game");
+
                 } else {
                     console.log("CurrTableSet Fail !");
                     socket.emit('logMeOut','LoginFail');
@@ -320,8 +332,11 @@ var socketGame = io.of('/game').on('connection', function (socket) {
 
 
     socket.on('disconnect', function () {
+        removeASocket(socket,socket_game_arr);
+        socket.leave(socket.args.pTableNo);
         socket.disconnect();
         console.log("Game on disconnect Server");
+        console.log("There have "+socket_game_arr.length+" user connect to Game");
     });
     socket.on('disconnecting', function () {
         console.log("Game on disconnecting Server");
@@ -342,13 +357,14 @@ function showObject(_obj)
     console.log("}");
 }
 
-function removeASocket(_socket)
+function removeASocket(_socket,_socket_arr)
 {
-    for(var i=0;i < socket_arr.length;i++)
-    {
-        if(_socket.args.pSessionId == socket_arr[i].args.pSessionId)
-        {
-            socket_arr.splice(i,1);
+    if(_socket.args != undefined) {
+        for (var i = 0; i < _socket_arr.length; i++) {
+            if (_socket.args.pSessionId == _socket_arr[i].args.pSessionId) {
+                console.log("REMOVE SOCKET _socket :" + _socket.args.pSessionId + " socket_arr " + _socket_arr[i].args.pSessionId)
+                _socket_arr.splice(i, 1);
+            }
         }
     }
 }
